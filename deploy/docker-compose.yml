@@ -1,0 +1,57 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: cv-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cv_root_123}
+      MYSQL_DATABASE: customer_visit
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ../backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-cv_root_123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # 如需本机客户端连接，可打开下面的端口映射
+    # ports:
+    #   - "3306:3306"
+
+  backend:
+    build: ../backend
+    container_name: cv-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: customer_visit
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cv_root_123}
+      JWT_SECRET: ${JWT_SECRET:-please-change-this-secret-key-at-least-32-bytes}
+      JWT_EXPIRE_HOURS: "168"
+      INIT_DEMO: ${INIT_DEMO:-true}
+      DEFAULT_MANAGER_PASSWORD: ${DEFAULT_MANAGER_PASSWORD:-123456}
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # ports:
+    #   - "8080:8080"
+
+  web:
+    build: ../frontend
+    container_name: cv-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8088}:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql-data:
